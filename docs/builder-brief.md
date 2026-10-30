@@ -92,7 +92,7 @@ Already verified by the coordinator on Crossref/DataCite (title, first author, j
 volume, pages match; re-check anyway and add PMIDs):
 
 - scanpy: Wolf FA, Angerer P, Theis FJ. Genome Biol 2018;19:15. 10.1186/s13059-017-1382-0
-- anndata: Virshup I, et al. JOSS 2024;9(96):4371. 10.21105/joss.04371
+- anndata: Virshup I, et al. JOSS 2024;9(101):4371. 10.21105/joss.04371
 - squidpy: Palla G, et al. Nat Methods 2022;19:171-178. 10.1038/s41592-021-01358-2
 - SpatialData: Marconato L, et al. Nat Methods 2025;22:58-62. 10.1038/s41592-024-02212-x
 - BANKSY: Singhal V, et al. Nat Genet 2024;56:431-441. 10.1038/s41588-024-01664-3
