@@ -72,6 +72,9 @@ drops observations/genes and adds layers and `obs` columns). `sample_id` matches
 
 Observations are ordered as in the source; apps never reorder `obs` of a file they rewrite.
 
+Gene sets may differ between samples after st-qc (it drops genes per sample). Apps that combine
+samples use the genes present in every sample, and say how many in their log and `summary.json`.
+
 ### `samples.csv` (in the `metadata` port, written by `st-prep`)
 
 One row per sample. Required columns: `sample_id`, `path` (the sample's source folder or file,
