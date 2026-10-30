@@ -123,7 +123,7 @@ volume, pages match; re-check anyway and add PMIDs):
 ## Licences (re-check the LICENSE file of what you bundle)
 
 scanpy, anndata, squidpy, spatialdata, scvi-tools, liana (1.x): BSD-3-Clause. cell2location:
-Apache-2.0. pydeseq2: MIT. harmonypy: BSD-3-Clause. pybanksy: GPL-3.0 (an image that bundles it
+Apache-2.0. pydeseq2: MIT. harmonypy 2.x: GPL-3.0-or-later (same note as pybanksy). pybanksy: GPL-3.0 (an image that bundles it
 is GPL as a whole; say so). igraph / leidenalg: GPL-2.0+ / GPL-3.0 (same note; every scanpy image
 has them). torch: BSD-3-Clause. Never use code with no licence, non-commercial, or academic-only
 terms. Do not copy code from GPL tools into our Apache code; call them as libraries.
