@@ -81,7 +81,9 @@ columns from the user's sample sheet are carried through unchanged (`condition`,
 
 `st-prep` reads an optional sample sheet from its input (`SAMPLE_SHEET`, default `samples.csv`,
 with at least `sample_id` and `path`; `path` is matched against folder and file names anywhere
-under the input). Without one, every detected sample becomes a row: `sample_id` = sanitised
+under the input). With a sheet, only its rows are samples: anything else detected is listed in
+`prep.json` under `ignored` (so a dataset that ships extra copies, such as the TLS demo's
+`h5ad_preprocessed/`, is not read twice). Without one, every detected sample becomes a row: `sample_id` = sanitised
 folder name (or file stem for `.h5ad`), `condition` absent.
 
 An optional `annotations.csv` (`sample_id`, `obs_id` (barcode or cell id as in the platform's
@@ -132,7 +134,7 @@ per file for `.h5ad` / `.zarr`):
 
 | Platform | Detected by | Reads |
 |---|---|---|
-| Visium (Space Ranger ≥ 1.x) | `filtered_feature_bc_matrix.h5` + `spatial/tissue_positions.csv` or `tissue_positions_list.csv` | matrix, positions, `scalefactors_json.json`, `tissue_hires_image.png`, `tissue_lowres_image.png` (`scanpy.read_visium`-equivalent, implemented with `h5py`/`scanpy.read_10x_h5` + pandas + Pillow) |
+| Visium (Space Ranger ≥ 1.x) | `filtered_feature_bc_matrix.h5` or the MTX folder `filtered_feature_bc_matrix/` + `spatial/tissue_positions.csv` or `tissue_positions_list.csv` | matrix, positions, `scalefactors_json.json`, `tissue_hires_image.png`, `tissue_lowres_image.png` (`scanpy.read_visium`-equivalent, implemented with `h5py`/`scanpy.read_10x_h5` + pandas + Pillow) |
 | Visium HD | `binned_outputs/square_<NNN>um/` (parameter `BIN_SIZE_UM`, default 8) with `filtered_feature_bc_matrix.h5` and `spatial/tissue_positions.parquet` | as Visium; `grid: square` |
 | Xenium | `cell_feature_matrix.h5` + `cells.parquet` or `cells.csv.gz` | matrix (`h5` 10x format), cell centroids and areas, `transcript_counts`, control probe/codeword counts |
 | MERSCOPE | `cell_by_gene.csv` + `cell_metadata.csv` | counts (dense CSV → CSR), `center_x/center_y`, `volume`; `Blank-*` features are controls |
