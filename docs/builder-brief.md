@@ -156,7 +156,7 @@ in st-prep, 20k), give `docker run` a `--memory` limit, measure peak memory
 ## Git
 
 `git init -b main` (if not yet a repo), commit with clear messages ending with
-`Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`, commit as
+`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, commit as
 `-c user.name="Joost Wagenaar" -c user.email="1605953+jwagenaar@users.noreply.github.com"`,
 and add the remote `git@github.com:pennsieve-apps/<repo>.git`. **Do not push, tag or create
 releases**: the coordinator pushes and releases.
