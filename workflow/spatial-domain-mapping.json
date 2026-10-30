@@ -18,7 +18,7 @@
       "id": "prep",
       "type": "processor",
       "sourceUrl": "https://github.com/pennsieve-apps/st-prep",
-      "tag": "v0.1.1",
+      "tag": "v0.1.2",
       "dependsOn": [
         "spatial"
       ],
