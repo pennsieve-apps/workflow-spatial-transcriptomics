@@ -12,6 +12,8 @@ Each step pins the newest release tag at or before the checked-out commit of its
 
 Usage: scripts/build-workflows.py
 """
+from __future__ import annotations
+
 import json
 import re
 import subprocess
@@ -34,7 +36,7 @@ def fargate_memory(cpu: str, mem: str) -> str:
     return mem
 
 
-def runtime(app: str) -> tuple[str, str]:
+def runtime(app: str, variant: str | None = None) -> tuple[str, str]:
     path = ROOT.parent / f"{app}" / "app.yml"
     if not path.exists():
         raise SystemExit(f"{path} not found: check out {app} next to this repo")
@@ -42,6 +44,14 @@ def runtime(app: str) -> tuple[str, str]:
     block = re.search(r"^runtime:\n((?:[ #].*\n?)*)", text, re.M).group(1)
     cpu = re.search(r"^\s+cpu:\s*(\d+)", block, re.M).group(1)
     mem = re.search(r"^\s+memory:\s*(\d+)", block, re.M).group(1)
+    if variant:  # a variant's runtime fields replace the top level's (app-manifest-variants.md)
+        v = re.search(rf"^  - id: {re.escape(variant)}\n((?:    .*\n?|\s*\n)*)", text, re.M)
+        if not v:
+            raise SystemExit(f"{app}: no variant {variant!r} in app.yml")
+        m = re.search(r"runtime:\s*\{([^}]*)\}", v.group(1)) or re.search(r"runtime:\n((?:      .*\n?)*)", v.group(1))
+        if m:
+            cpu = (re.search(r"cpu:\s*(\d+)", m.group(1)) or [None, cpu])[1]
+            mem = (re.search(r"memory:\s*(\d+)", m.group(1)) or [None, mem])[1]
     return cpu, fargate_memory(cpu, mem)
 
 
@@ -63,8 +73,8 @@ def release_tag(app: str) -> str:
     return tag
 
 
-def step(id_, app, col, row, depends, links=(), params=None):
-    cpu, mem = runtime(app)
+def step(id_, app, col, row, depends, links=(), params=None, variant=None):
+    cpu, mem = runtime(app, variant)
     tag = release_tag(app)
     node = {
         "id": id_,
@@ -76,6 +86,8 @@ def step(id_, app, col, row, depends, links=(), params=None):
         "cpu": cpu,
         "memory": mem,
     }
+    if variant:
+        node["variant"] = variant
     if links:
         node["inputs"] = [{"from": f, "output": o, "input": i} for f, o, i in links]
     if params:
@@ -149,32 +161,36 @@ def domains():
     }
 
 
-def deconvolution():
+def deconvolution(variant=None):
     steps = [
         PREP(1, 2),
         QC(2, 2),
         step("deconvolution", "cell2location", 3, 2, ["qc", "prep", "reference"],
              [QCD, META, ("reference", "reference", "reference")],
-             {"CELL_TYPE_COLUMN": "cell_type"}),
+             {"CELL_TYPE_COLUMN": "cell_type"}, variant=variant),
         step("niches", "st-niches", 4, 2, ["deconvolution", "qc", "prep"],
              [QCD, ("deconvolution", "labels", "labels"), META],
-             {"LABEL_COLUMN": "dominant_type", "LABEL": "dominant-type"}),
+             {"LABEL_COLUMN": "colocation_group", "LABEL": "colocation-group"}),
         step("report", "st-report", 5, 2, ["prep", "qc", "deconvolution", "niches"],
              [META, ("qc", "qc", "qc"), ("deconvolution", "labels", "deconvolution"),
               ("niches", "niches", "niches")],
              {"REPORT_TITLE": "Cell-type Deconvolution & Niches"}),
     ]
+    gpu = variant == "gpu"
     return {
-        "name": "Cell-type Deconvolution & Niches",
-        "summary": "Visium + scRNA-seq reference: cell2location abundances per spot, co-location groups, niches.",
+        "name": "Cell-type Deconvolution & Niches" + (" (GPU)" if gpu else ""),
+        "summary": ("Visium + scRNA-seq reference: cell2location on GPU, co-location groups, niches." if gpu else
+                    "Visium + scRNA-seq reference: cell2location abundances per spot, co-location groups, niches."),
         "description": (
             "Estimates the cell-type composition of every Visium spot from a single-cell reference and "
             "maps how cell types organize in the tissue. Reads Space Ranger or AnnData input (st-prep), "
             "filters and normalizes spots (st-qc), runs cell2location (Kleshchevnikov et al. 2022) with "
             "reference signatures estimated from the scRNA-seq reference, reports per-spot cell "
             "abundances, the dominant type per spot and co-location groups, scores neighbourhood "
-            "enrichment and cellular niches of the dominant types (squidpy), and writes an HTML report "
-            "with tables."),
+            "enrichment and cellular niches of each spot's strongest co-location group (squidpy), and "
+            "writes an HTML report with tables." + (" Runs cell2location's GPU variant (CUDA PyTorch, the "
+            "tutorial's 30,000 epochs) on a GPU compute node." if gpu else " Runs cell2location's CPU variant "
+            "(5,000 epochs); use the GPU workflow where a GPU node is available.")),
         "inputs": [
             spatial_input("A folder of Space Ranger outputs (one per sample) or AnnData .h5ad files, "
                           "plus an optional samples.csv.", row=1),
@@ -244,6 +260,7 @@ def main():
     out.mkdir(exist_ok=True)
     for name, wf in (("spatial-domain-mapping", domains()),
                      ("cell-type-deconvolution-niches", deconvolution()),
+                     ("cell-type-deconvolution-niches-gpu", deconvolution("gpu")),
                      ("single-cell-spatial-profiling", profiling())):
         assert len(wf["summary"].encode()) <= 100, (name, len(wf["summary"].encode()))
         (out / f"{name}.json").write_text(json.dumps(wf, indent=2) + "\n")

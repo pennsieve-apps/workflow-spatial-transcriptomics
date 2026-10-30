@@ -72,7 +72,7 @@ if [ "$WHICH" = b ]; then
   mkdir -p "$WORK/deconvolution/input/reference"; cp "$REFERENCE" "$WORK/deconvolution/input/reference/"
   run deconvolution cell2location CELL_TYPE_COLUMN="${CELL_TYPE_COLUMN:-cell_type}" SPATIAL_EPOCHS="${SPATIAL_EPOCHS:-30000}"
   fresh niches; link niches spatial qc spatial; link niches labels deconvolution labels; link niches metadata prep metadata
-  run niches st-niches LABEL_COLUMN=dominant_type LABEL=dominant-type
+  run niches st-niches LABEL_COLUMN=colocation_group LABEL=colocation-group
   fresh report
   link report metadata prep metadata; link report qc qc qc; link report deconvolution deconvolution labels
   link report niches niches .
