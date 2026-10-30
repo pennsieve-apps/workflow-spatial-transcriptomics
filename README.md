@@ -1,6 +1,6 @@
 # Spatial transcriptomics workflows on Pennsieve
 
-Three end-to-end workflows for spatial transcriptomics, built from reusable, open-source Pennsieve
+Four end-to-end workflows for spatial transcriptomics, built from reusable, open-source Pennsieve
 apps. They cover the questions most spatial studies ask, on both kinds of platform: sequencing-based
 (10x Visium, Visium HD, Slide-seq), where an observation is a spot or bin holding several cells, and
 imaging-based (10x Xenium, Vizgen MERSCOPE, NanoString CosMx), where it is a segmented cell. They follow
@@ -10,7 +10,7 @@ landscape reviewed by Moses & Pachter (2022).
 | Workflow | Question it answers | Data | Definition |
 |---|---|---|---|
 | **Spatial Domain Mapping & Condition Comparison** | What are the tissue's domains, which genes are spatially patterned, and what differs between conditions within each domain? | Visium, Visium HD, Slide-seq | `workflow/spatial-domain-mapping.json` |
-| **Cell-type Deconvolution & Niches** | Which cell types make up each spot, which co-locate, and how are they organised? | Visium + a scRNA-seq reference | `workflow/cell-type-deconvolution-niches.json` |
+| **Cell-type Deconvolution & Niches** | Which cell types make up each spot, which co-locate, and how are they organised? | Visium + a scRNA-seq reference | `workflow/cell-type-deconvolution-niches.json` (CPU) and `workflow/cell-type-deconvolution-niches-gpu.json` (GPU) |
 | **Single-cell Spatial Profiling** | Which cell types are where, which neighbourhoods do they form, and how do they signal to each other? | Xenium, MERSCOPE, CosMx | `workflow/single-cell-spatial-profiling.json` |
 
 ## Spatial Domain Mapping & Condition Comparison
@@ -44,10 +44,17 @@ reference ───────┼───────────────�
 1. and 2. as above.
 3. Estimate reference signatures from the scRNA-seq reference and map every spot's cell-type abundance
    with cell2location (Kleshchevnikov et al. 2022), one of the two best-performing deconvolution
-   methods in independent benchmarks (Li et al. 2022; Sang-aram et al. 2024). Report the dominant type
-   per spot and co-location groups.
-4. Score neighbourhood enrichment, co-occurrence and cellular niches of the dominant types.
+   methods in independent benchmarks (Li et al. 2022; Sang-aram et al. 2024). Report per-spot
+   abundances, co-location groups (cell types that occur together), and each spot's strongest group.
+4. Score neighbourhood enrichment, co-occurrence and cellular niches of the co-location groups. (A
+   spot's single dominant cell type is reported too, but with a fine-grained reference and about 7
+   cells per spot, most spots have none, so the groups are the label used here.)
 5. Write a report.
+
+The workflow comes in two versions, one per cell2location variant: the **CPU** workflow runs
+cell2location on a standard node with 5,000 training epochs (about 2 h for a 4,000-spot section on
+4 vCPU); the **GPU** workflow runs its CUDA build on a GPU node with the tutorial's 30,000 epochs.
+Use the GPU workflow wherever the compute node has GPUs.
 
 ## Single-cell Spatial Profiling
 
@@ -80,11 +87,11 @@ carry no `processor-` prefix.
 | domains | [st-domains](https://github.com/pennsieve-apps/st-domains) | BANKSY, Harmony, Leiden | Spatial domains shared across sections; 3.1 min (8 Visium sections) |
 | svg | [st-svg](https://github.com/pennsieve-apps/st-svg) | squidpy | Moran's I per section and consensus; 39–43 s (can run as Lambda) |
 | compare | [st-compare](https://github.com/pennsieve-apps/st-compare) | PyDESeq2, SciPy | Composition and pseudobulk DE between conditions per label; 2 min (can run as Lambda) |
-| deconvolution | [cell2location](https://github.com/pennsieve-apps/cell2location) | cell2location, scvi-tools | Reference signatures, per-spot abundances, co-location; CPU or GPU |
+| deconvolution | [cell2location](https://github.com/pennsieve-apps/cell2location) | cell2location, scvi-tools | Reference signatures, per-spot abundances, co-location groups; two variants: `cpu` (default) and `gpu`; ~2 h on 4 vCPU at 5,000 epochs |
 | celltype | [st-celltype](https://github.com/pennsieve-apps/st-celltype) | scanpy, Harmony, Leiden | Clusters and marker-based cell types; 3.5 min (285 k cells) |
-| niches | [st-niches](https://github.com/pennsieve-apps/st-niches) | squidpy, scikit-learn | Neighbourhood enrichment, co-occurrence, niches |
+| niches | [st-niches](https://github.com/pennsieve-apps/st-niches) | squidpy, scikit-learn | Neighbourhood enrichment, co-occurrence, niches; 35 s (lymph node) to 58 s (285 k cells) |
 | ccc | [st-ccc](https://github.com/pennsieve-apps/st-ccc) | LIANA+ | Ligand–receptor consensus and spatial bivariate scores; 88 s (285 k cells) |
-| report | [st-report](https://github.com/pennsieve-apps/st-report) | pandas, matplotlib | Offline HTML report and tables for any of the workflows (can run as Lambda) |
+| report | [st-report](https://github.com/pennsieve-apps/st-report) | pandas, matplotlib, Jinja2 | Offline HTML report and tables for any of the workflows; 3–9 s (can run as Lambda) |
 
 Runtimes were measured under amd64 emulation on an Apple-silicon Mac. Every step loops over all the
 samples it receives, so one run processes the whole study.
@@ -110,7 +117,7 @@ destination.
 
 **Defaults set for the demos.** Change these per step for your own study:
 - st-compare: `CONDITION_COLUMN=tissue` (the TLS demo compares kidney with lung).
-- st-niches: `LABEL_COLUMN=dominant_type` after cell2location, `cell_type` after st-celltype.
+- st-niches: `LABEL_COLUMN=colocation_group` after cell2location, `cell_type` after st-celltype.
 - cell2location: `N_CELLS_PER_LOCATION=8` suits 55 µm Visium spots; use 1–3 for Visium HD 8 µm bins.
 
 ## Platform features exercised
@@ -120,7 +127,8 @@ destination.
 - A second workflow input (the scRNA-seq reference) joining mid-pipeline.
 - Fan-out and fan-in DAGs.
 - One app (st-niches, st-report) serving several workflows on different labels.
-- Lambda-capable steps next to Fargate steps, and a GPU-capable step (cell2location).
+- Lambda-capable steps next to Fargate steps.
+- An app with two variants from one release (cell2location `cpu` and `gpu`), and a workflow per variant.
 - A workflow interface whose outputs are bound to dataset folders at run time.
 
 ## Demo data
