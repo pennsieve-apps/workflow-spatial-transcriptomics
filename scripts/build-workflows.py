@@ -23,17 +23,21 @@ ROOT = Path(__file__).resolve().parent.parent
 ORG = "https://github.com/pennsieve-apps"
 COL, ROW = 260, 130  # canvas grid
 
-# Fargate accepts only some cpu/memory pairs (MiB): the least memory each cpu allows. An app
-# that asks for less (e.g. 4 vCPU / 4 GiB) has its step rounded up, or the task is refused.
+# Fargate accepts only some cpu/memory pairs (MiB): from a minimum per cpu, in steps of 1 GiB (4 GiB
+# from 8 vCPU). An app that asks for something else (4 vCPU / 4 GiB, or the 3008 MiB of a Lambda-sized
+# step on 1 vCPU) has its step rounded up to the next valid size, or the task is refused. GPU steps run
+# on EC2, not Fargate, and keep what they ask for.
 FARGATE_MIN_MEMORY = {256: 512, 512: 1024, 1024: 2048, 2048: 4096, 4096: 8192, 8192: 16384, 16384: 32768}
+FARGATE_STEP = {256: 512, 512: 1024, 1024: 1024, 2048: 1024, 4096: 1024, 8192: 4096, 16384: 8192}
 
 
 def fargate_memory(cpu: str, mem: str) -> str:
-    floor = FARGATE_MIN_MEMORY.get(int(cpu), 0)
-    if int(mem) < floor:
-        print(f"note: {cpu} cpu / {mem} MiB is not a Fargate size; using {floor} MiB")
-        return str(floor)
-    return mem
+    c, m = int(cpu), int(mem)
+    floor, step = FARGATE_MIN_MEMORY.get(c, 0), FARGATE_STEP.get(c, 1)
+    valid = max(floor, -(-m // step) * step)
+    if valid != m:
+        print(f"note: {cpu} cpu / {mem} MiB is not a Fargate size; using {valid} MiB")
+    return str(valid)
 
 
 def runtime(app: str, variant: str | None = None) -> tuple[str, str]:
@@ -52,7 +56,7 @@ def runtime(app: str, variant: str | None = None) -> tuple[str, str]:
         if m:
             cpu = (re.search(r"cpu:\s*(\d+)", m.group(1)) or [None, cpu])[1]
             mem = (re.search(r"memory:\s*(\d+)", m.group(1)) or [None, mem])[1]
-    return cpu, fargate_memory(cpu, mem)
+    return cpu, mem
 
 
 def release_tag(app: str) -> str:
@@ -75,6 +79,8 @@ def release_tag(app: str) -> str:
 
 def step(id_, app, col, row, depends, links=(), params=None, variant=None):
     cpu, mem = runtime(app, variant)
+    if variant != "gpu":
+        mem = fargate_memory(cpu, mem)
     tag = release_tag(app)
     node = {
         "id": id_,
@@ -89,7 +95,9 @@ def step(id_, app, col, row, depends, links=(), params=None, variant=None):
     if variant:
         node["variant"] = variant
     if links:
-        node["inputs"] = [{"from": f, "output": o, "input": i} for f, o, i in links]
+        # A link from a workflow input (output None) names no output: the input is the data itself.
+        node["inputs"] = [{"from": f, "input": i} if o is None else {"from": f, "output": o, "input": i}
+                          for f, o, i in links]
     if params:
         node["defaultParams"] = params
     return node
@@ -166,7 +174,7 @@ def deconvolution(variant=None):
         PREP(1, 2),
         QC(2, 2),
         step("deconvolution", "cell2location", 3, 2, ["qc", "prep", "reference"],
-             [QCD, META, ("reference", "reference", "reference")],
+             [QCD, META, ("reference", None, "reference")],
              {"CELL_TYPE_COLUMN": "cell_type"}, variant=variant),
         step("niches", "st-niches", 4, 2, ["deconvolution", "qc", "prep"],
              [QCD, ("deconvolution", "labels", "labels"), META],

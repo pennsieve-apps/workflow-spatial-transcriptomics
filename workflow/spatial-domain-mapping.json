@@ -1,0 +1,307 @@
+{
+  "name": "Spatial Domain Mapping & Condition Comparison",
+  "summary": "Visium/Visium HD: QC, BANKSY spatial domains, spatially variable genes, DE between conditions.",
+  "description": "Maps the tissue domains of sequencing-based spatial transcriptomics sections (10x Visium, Visium HD bins, Slide-seq) and compares conditions. Reads Space Ranger or AnnData input (st-prep), filters and normalizes spots (st-qc), finds spatial domains shared across samples with BANKSY (Singhal et al. 2024) and reports their marker genes and agreement with any annotation, ranks spatially variable genes by Moran's I (squidpy), tests domain composition and pseudobulk differential expression per domain between conditions (PyDESeq2), and writes an HTML report with tables.",
+  "inputs": [
+    {
+      "id": "spatial",
+      "name": "Spatial transcriptomics data",
+      "description": "A folder of Space Ranger outputs (one per sample), Visium HD binned outputs, AnnData .h5ad or SpatialData .zarr files, plus an optional samples.csv (sample_id, path, condition, ...) and annotations.csv (sample_id, obs_id, annotation).",
+      "position": {
+        "x": 40,
+        "y": 300
+      }
+    }
+  ],
+  "processors": [
+    {
+      "id": "prep",
+      "type": "processor",
+      "sourceUrl": "https://github.com/pennsieve-apps/st-prep",
+      "tag": "v0.1.0",
+      "dependsOn": [
+        "spatial"
+      ],
+      "position": {
+        "x": 300,
+        "y": 300
+      },
+      "cpu": "2048",
+      "memory": "8192"
+    },
+    {
+      "id": "qc",
+      "type": "processor",
+      "sourceUrl": "https://github.com/pennsieve-apps/st-qc",
+      "tag": "v0.1.0",
+      "dependsOn": [
+        "prep"
+      ],
+      "position": {
+        "x": 560,
+        "y": 300
+      },
+      "cpu": "2048",
+      "memory": "16384",
+      "inputs": [
+        {
+          "from": "prep",
+          "output": "spatial",
+          "input": "spatial"
+        },
+        {
+          "from": "prep",
+          "output": "metadata",
+          "input": "metadata"
+        }
+      ]
+    },
+    {
+      "id": "domains",
+      "type": "processor",
+      "sourceUrl": "https://github.com/pennsieve-apps/st-domains",
+      "tag": "v0.1.0",
+      "dependsOn": [
+        "qc",
+        "prep"
+      ],
+      "position": {
+        "x": 820,
+        "y": 300
+      },
+      "cpu": "4096",
+      "memory": "12288",
+      "inputs": [
+        {
+          "from": "qc",
+          "output": "spatial",
+          "input": "spatial"
+        },
+        {
+          "from": "prep",
+          "output": "metadata",
+          "input": "metadata"
+        }
+      ]
+    },
+    {
+      "id": "svg",
+      "type": "processor",
+      "sourceUrl": "https://github.com/pennsieve-apps/st-svg",
+      "tag": "v0.1.0",
+      "dependsOn": [
+        "qc",
+        "prep"
+      ],
+      "position": {
+        "x": 1080,
+        "y": 170
+      },
+      "cpu": "1024",
+      "memory": "3072",
+      "inputs": [
+        {
+          "from": "qc",
+          "output": "spatial",
+          "input": "spatial"
+        },
+        {
+          "from": "prep",
+          "output": "metadata",
+          "input": "metadata"
+        }
+      ]
+    },
+    {
+      "id": "compare",
+      "type": "processor",
+      "sourceUrl": "https://github.com/pennsieve-apps/st-compare",
+      "tag": "v0.1.0",
+      "dependsOn": [
+        "domains",
+        "qc",
+        "prep"
+      ],
+      "position": {
+        "x": 1080,
+        "y": 430
+      },
+      "cpu": "2048",
+      "memory": "4096",
+      "inputs": [
+        {
+          "from": "qc",
+          "output": "spatial",
+          "input": "spatial"
+        },
+        {
+          "from": "domains",
+          "output": "labels",
+          "input": "labels"
+        },
+        {
+          "from": "prep",
+          "output": "metadata",
+          "input": "metadata"
+        }
+      ],
+      "defaultParams": {
+        "LABEL_COLUMN": "domain",
+        "CONDITION_COLUMN": "tissue"
+      }
+    },
+    {
+      "id": "report",
+      "type": "processor",
+      "sourceUrl": "https://github.com/pennsieve-apps/st-report",
+      "tag": "v0.1.0",
+      "dependsOn": [
+        "prep",
+        "qc",
+        "domains",
+        "svg",
+        "compare"
+      ],
+      "position": {
+        "x": 1340,
+        "y": 300
+      },
+      "cpu": "1024",
+      "memory": "2048",
+      "inputs": [
+        {
+          "from": "prep",
+          "output": "metadata",
+          "input": "metadata"
+        },
+        {
+          "from": "qc",
+          "output": "qc",
+          "input": "qc"
+        },
+        {
+          "from": "domains",
+          "output": "labels",
+          "input": "domains"
+        },
+        {
+          "from": "svg",
+          "output": "svg",
+          "input": "svg"
+        },
+        {
+          "from": "compare",
+          "output": "compare",
+          "input": "compare"
+        }
+      ],
+      "defaultParams": {
+        "REPORT_TITLE": "Spatial Domain Mapping & Condition Comparison"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "id": "report_out",
+      "name": "Report",
+      "from": {
+        "step": "report",
+        "output": "report"
+      },
+      "position": {
+        "x": 1600,
+        "y": 170
+      },
+      "default": {
+        "targetType": "Pennsieve Dataset",
+        "params": {
+          "TARGET_FOLDER": "derivatives/spatial-domains/report"
+        }
+      }
+    },
+    {
+      "id": "tables_out",
+      "name": "Tables",
+      "from": {
+        "step": "report",
+        "output": "tables"
+      },
+      "position": {
+        "x": 1600,
+        "y": 300
+      },
+      "default": {
+        "targetType": "Pennsieve Dataset",
+        "params": {
+          "TARGET_FOLDER": "derivatives/spatial-domains/tables"
+        }
+      }
+    },
+    {
+      "id": "domains_out",
+      "name": "Spatial domains",
+      "from": {
+        "step": "domains",
+        "output": "labels"
+      },
+      "position": {
+        "x": 1600,
+        "y": 430
+      },
+      "default": {
+        "targetType": "Pennsieve Dataset",
+        "params": {
+          "TARGET_FOLDER": "derivatives/spatial-domains/domains"
+        }
+      }
+    },
+    {
+      "id": "svg_out",
+      "name": "Spatially variable genes",
+      "from": {
+        "step": "svg",
+        "output": "svg"
+      },
+      "position": {
+        "x": 1600,
+        "y": 560
+      },
+      "default": {
+        "targetType": "Pennsieve Dataset",
+        "params": {
+          "TARGET_FOLDER": "derivatives/spatial-domains/svg"
+        }
+      }
+    },
+    {
+      "id": "compare_out",
+      "name": "Condition comparison",
+      "from": {
+        "step": "compare",
+        "output": "compare"
+      },
+      "position": {
+        "x": 1600,
+        "y": 690
+      },
+      "default": {
+        "targetType": "Pennsieve Dataset",
+        "params": {
+          "TARGET_FOLDER": "derivatives/spatial-domains/compare"
+        }
+      }
+    },
+    {
+      "id": "qc_spatial_out",
+      "name": "QC'd AnnData",
+      "from": {
+        "step": "qc",
+        "output": "spatial"
+      },
+      "position": {
+        "x": 1600,
+        "y": 820
+      }
+    }
+  ]
+}
