@@ -126,9 +126,12 @@ of them per `labels` port. Within a single file all observations of all samples 
 
 Apps that need a spatial graph build it with `squidpy.gr.spatial_neighbors` from the contract:
 Visium (`grid: hex`) with `coord_type="grid", n_neighs=6, n_rings=N_RINGS`; everything else
-with `coord_type="generic"` and either `delaunay=True` or `n_neighs=K` (`NEIGHBOURS` parameter,
-default `delaunay` for cells and `k=6` for bins), with a `radius` cap of
-`MAX_NEIGHBOUR_DISTANCE` × `spot_diameter` so sparse regions don't connect across gaps.
+with `coord_type="generic"` and either `delaunay=True` (`NEIGHBOURS=delaunay`, the default for
+every non-hex platform) or `n_neighs=k` (`NEIGHBOURS=<k>`; set `NEIGHBOURS=8` for Visium HD square
+bins, the 8 surrounding bins), with a `radius` cap of `MAX_NEIGHBOUR_DISTANCE` × `spot_diameter` so
+sparse regions don't connect across gaps. Subsampled cell data (`MAX_OBS_PER_SAMPLE`) gives a sparse
+graph under that cap; use it for quick runs, not for final numbers. st-ccc uses LIANA's own Gaussian
+kernel graph (bandwidth × `spot_diameter`), on which its bivariate scores are defined.
 
 ## Platform readers (st-prep)
 
